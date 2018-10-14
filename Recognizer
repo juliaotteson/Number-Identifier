@@ -1,0 +1,225 @@
+import java.awt.Point;
+import java.io.*;
+
+/**
+ * This class performs unistroke handwriting recognition using an algorithm
+ * known as "elastic matching."
+ * 
+ * 
+ */
+
+public class Recognizer {
+    private static final int NUMSTROKES = 10; 
+    public static final int STROKESIZE = 150; 
+    private Point[] userStroke; 
+    private int nextFree; 
+
+    private Point[][] baseSet; 
+
+    public Recognizer()
+    {
+        int row, col, stroke, pointNum, x, y;
+        String inputLine;
+
+        userStroke = new Point[STROKESIZE];
+        baseSet = new Point[NUMSTROKES][STROKESIZE];
+
+        try {
+            FileReader myReader = new FileReader("strokedata.txt");
+            BufferedReader myBufferedReader = new BufferedReader(myReader);
+            for (stroke = 0; stroke < NUMSTROKES; stroke++)
+                for (pointNum = 0; pointNum < STROKESIZE; pointNum++) {
+                    inputLine = myBufferedReader.readLine();
+                    x = Integer.parseInt(inputLine);
+                    inputLine = myBufferedReader.readLine();
+                    y = Integer.parseInt(inputLine);
+                    baseSet[stroke][pointNum] = new Point(x, y);
+                }
+            myBufferedReader.close();
+            myReader.close();
+        }
+        catch (IOException e) {
+            System.out.println("Error writing to file.\n");
+        }
+    }
+
+    public void translate () 
+    {
+        int u= findMinY();
+        int l= findMinX();
+        for (int i=0; i<nextFree; i++)
+        {
+            userStroke[i].y= userStroke[i].y - u;
+            userStroke[i].x= userStroke[i].x - l;
+
+        }
+    }
+
+    public void scale () 
+    {
+        int max;
+        if (findMaxX() > findMaxY()) 
+        {
+            max = findMaxX();
+        }
+        else 
+        {
+            max = findMaxY();
+        }
+        double scaleFactor;
+        scaleFactor = 250.0/max;
+        int i;
+        for ( i=0; i < nextFree; i++){
+            userStroke[i].x = userStroke[i].x *= scaleFactor;   
+            userStroke[i].y = userStroke[i].y *= scaleFactor;
+        }
+    }
+
+    private void insertOnePoint()
+    {
+        int maxPosition = 0, newX, newY, distance;
+        int maxDistance = (int) userStroke[0].distance(userStroke[1]);
+        for (int i=1; i<nextFree - 1; i++)
+        {
+            if ((int)userStroke[i].distance(userStroke[i+1]) > maxDistance)
+            {
+                maxDistance = (int) userStroke[i].distance(userStroke[i+1]);
+                maxPosition=i;
+            }
+
+        }
+
+        
+        for (int i = nextFree; i > maxPosition + 1; i--)
+            userStroke[i] = userStroke[i - 1];
+
+        newX = (int) (userStroke[maxPosition].getX() + userStroke[maxPosition + 2]
+            .getX()) / 2;
+        newY = (int) (userStroke[maxPosition].getY() + userStroke[maxPosition + 2]
+            .getY()) / 2;
+        userStroke[maxPosition + 1] = new Point(newX, newY);
+
+        nextFree++;
+    }
+
+    public void normalizeNumPoints()
+    {
+        while (nextFree < STROKESIZE) {
+            insertOnePoint();
+        }
+    }
+
+    public double computeScore (int digitToCompare) 
+    {
+        int i;
+        double score=0;
+        for (i=0; i<nextFree; i++)
+        {
+            score+=userStroke[i].distance(baseSet[digitToCompare][i]);
+
+        }
+        return score;
+    }
+
+    public int findMatch()
+    {
+        int i;
+        double min=computeScore(0);
+        translate();
+        scale();
+        normalizeNumPoints();
+        int index=0;
+        for(i=0; i<10; i++)
+        {
+            if (computeScore(i)<min)
+            {
+                min=computeScore(i);
+                index=i;
+
+            }
+        }
+        return index; 
+    }
+
+    public int findMinX ()
+    {
+        int min = userStroke[0].x;
+        for (int i=1; i<nextFree; i++)
+        {
+            if (userStroke[i].x < min)
+                min=userStroke[i].x;
+        }
+        return min;
+    }
+
+    public int findMinY ()
+    {
+        int min = userStroke[0].y;
+        for (int i=1; i<nextFree; i++)
+        {
+            if (userStroke[i].y < min)
+                min=userStroke[i].y;
+        }
+        return min;
+    }
+
+    public int findMaxX ()
+    {
+        int max = userStroke[0].x;
+        for (int i=1; i<nextFree; i++)
+        {
+            if (userStroke[i].x > max)
+                max=userStroke[i].x;
+        }
+        return max;
+    }
+
+    public int findMaxY ()
+    {
+        int max = userStroke[0].y;
+        for (int i=1; i<nextFree; i++)
+        {
+            if (userStroke[i].y > max)
+                max=userStroke[i].y;
+        }
+        return max;
+    }
+
+    public void resetUserStroke()
+    {
+        nextFree = 0;
+    }
+
+    public int numUserPoints()
+    {
+        return nextFree;
+    }
+
+    public int getUserPointX(int i)
+    {
+        if ((i >= 0) && (i < nextFree))
+            return ((int) userStroke[i].getX());
+        else {
+            System.out.println("Invalid value of i in getUserPoint");
+            return (0);
+        }
+    }
+
+    public int getUserPointY(int i)
+    {
+        if ((i >= 0) && (i < nextFree))
+            return ((int) userStroke[i].getY());
+        else {
+            System.out.println("Invalid value of i in getUserPoint");
+            return (0);
+        }
+    }
+
+    public void addUserPoint(Point newPoint)
+    {
+        if (nextFree < STROKESIZE) {
+            userStroke[nextFree] = newPoint;
+            nextFree++;
+        }
+    }
+}
